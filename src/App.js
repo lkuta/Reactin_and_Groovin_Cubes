@@ -1,93 +1,162 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, Component } from 'react';
 import './App.css';
 import { API, Storage } from 'aws-amplify';
-import { withAuthenticator, Authenticator } from '@aws-amplify/ui-react';
-import { listNotes } from './graphql/queries';
-import { createNote as createNoteMutation, deleteNote as deleteNoteMutation } from './graphql/mutations';
 
-const initialFormState = { name: '', description: '' }
+//var x = 20;
+//var y = 30;
 
-function App() {
-  const [notes, setNotes] = useState([]);
-  const [formData, setFormData] = useState(initialFormState);
-
-  useEffect(() => {
-    fetchNotes();
-  }, []);
-
-  async function onChange(e) {
-    if (!e.target.files[0]) return
-      const file = e.target.files[0];
-      setFormData({ ...formData, image: file.name });
-      await Storage.put(file.name, file);
-      fetchNotes();
-  }
-
-  async function fetchNotes() {
-    const apiData = await API.graphql({ query: listNotes });
-    const notesFromAPI = apiData.data.listNotes.items;
-    await Promise.all(notesFromAPI.map(async note => {
-      if(note.image){
-        const image = await Storage.get(note.image);
-        note.image = image;
-      }
-      return note;
-    }))
-    setNotes(apiData.data.listNotes.items);
-  }
-
-  async function createNote() {
-    if (!formData.name || !formData.description) return;
-    await API.graphql({ query: createNoteMutation, variables: { input: formData } });
-    if (formData.image) {
-      const image = await Storage.get(formData.image);
-      formData.image = image;
-    }
-    setNotes([ ...notes, formData ]);
-    setFormData(initialFormState);
-  }
-
-  async function deleteNote({ id }) {
-    const newNotesArray = notes.filter(note => note.id !== id);
-    setNotes(newNotesArray);
-    await API.graphql({ query: deleteNoteMutation, variables: { input: { id } }});
-  }
-
-  return (
-    <div className="App">
-      <h1>My Notes App</h1>
-      <input
-        onChange={e => setFormData({ ...formData, 'name': e.target.value})}
-        placeholder="Note name"
-        value={formData.name}
-      />
-      <input
-        onChange={e => setFormData({ ...formData, 'description': e.target.value})}
-        placeholder="Note description"
-        value={formData.description}
-      />
-      <input
-        type="file"
-        onChange={onChange}
-      />
-      <button onClick={createNote}>Create Note</button>
-      <div style={{marginBottom: 30}}>
-        {
-          notes.map(note => (
-            <div key={note.id || note.name}>
-              <h2>{note.name}</h2>
-              <p>{note.description}</p>
-              <button onClick={() => deleteNote(note)}>Delete note</button>
-              {
-                  note.image && <img src={note.image} style={{width: 400}} />
-              }
-            </div>
-          ))
-        }
-      </div>
-      <Authenticator />
-    </div>
-  );
+async function postX(x) {
+    //event.preventDefault();
+    console.log("Sending: " + x);
+    const send = await fetch("https://j8zwyrwj3b.execute-api.us-east-1.amazonaws.com/dev/position/x", {method: "POST", body: x});
+    const text = await send.text();
+    console.log("Received (postX): " + text);
 }
 
-export default withAuthenticator(App);
+async function postY(y) {
+    //event.preventDefault();
+    console.log("Sending: " + y);
+    const send = await fetch("https://j8zwyrwj3b.execute-api.us-east-1.amazonaws.com/dev/position/y", {method: "POST", body: y});
+    const text = await send.text();
+    console.log("Received (posty): " + text);
+}
+
+async function getPosition() {
+  const response = await fetch("https://j8zwyrwj3b.execute-api.us-east-1.amazonaws.com/dev/position");
+  const text = await response.text();
+  console.log("Received (getPos: " + text);
+  return JSON.parse(text);
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+ function App({}){
+    const canvas = useRef();
+    //const [ctx, setCtx] = useState(null); //canvas.current.getContext("2d"));
+    const ctx = useRef()
+    /*
+    //const [dimensions, setDim] = useState({ x:20, y:30, w:100, h:50});
+    const [x, setX] = useState(20);
+    const [y, setY] = useState(30);
+    const xRef = useRef({})
+    xRef.current = x
+    const yRef = useRef({})
+    yRef.current = y
+    */
+    const [x, setX] = useState(80);
+    const [y, setY] = useState(80);
+    //let x = useRef(20)
+    //let y = useRef(30)
+    const [toggle, setToggle] = useState(false)
+
+
+    function increment(x){
+        return x + 10;
+    }
+
+    function decrement(x) {
+        return x - 10;  
+    }
+
+    const actionXMap = {
+        ArrowLeft: decrement,
+        ArrowRight: increment
+    }
+    const actionYMap = {
+        ArrowDown: increment,
+        ArrowUp: decrement
+    }
+
+
+
+    useEffect(() => {
+        async function handleKeyPress(e){
+        console.log(e.key)
+        const actionX = actionXMap[e.key];
+        const actionY = actionYMap[e.key];
+        ///actionX && setX(actionX);
+        ///actionY && setY(actionY);
+        if (actionX){
+            console.log("Before setX: " + x)
+            //setX(actionX)
+            console.log("After setX: " + [x])
+            postX(actionX(x))
+            //x.current = actionX(x.current)
+        }
+        if (actionY){
+            console.log("Before setY: " + [y])
+            setY(actionY)
+            console.log("After setY: " + [y])
+            postY(y)
+            //y.current = actionY(y.current)
+        }
+        if (actionX || actionY){
+            console.log(toggle)
+            setToggle(!toggle)
+        }
+
+        await sleep(100)
+        let value = await getPosition()
+        setY(value[1])
+        setX(value[0])
+        //console.log(x.current + ", " + y.current)
+        console.log(x + ", " + y)
+    }
+        window.addEventListener("keydown", handleKeyPress);
+        return () => window.removeEventListener("keydown", handleKeyPress);
+    }, );
+
+   // useEffect(() => {
+     //  document.addEventListener("keydown", handleKeyPress);
+    //},/ []);
+
+    console.log("Here in App");
+
+    useEffect (() => {
+        const canvasEle = canvas.current;
+        canvasEle.width = canvasEle.clientWidth;
+        canvasEle.height = canvasEle.clientHeight;
+        //setCtx(canvasEle.getContext("2d"))
+        ctx.current = canvasEle.getContext("2d")
+    }, [x, y]);
+
+    useEffect (() => {
+        //const r1Info = { x:20, y:30, w:100, h:50};
+        //console.log(dimensions);
+        const r1Style = {borderColor: 'blue', borderWidth: 10, backgroundColor: 'green'};
+        drawRect(x, y, r1Style);
+    }, [x, y]);
+
+    const drawRect = (x, y, style = {}) => {
+        const w = 100;
+        const h = 50;
+        const {borderColor = 'black', borderWidth = 1, backgroundColor = 'black'} = style;
+
+        ctx.current.beginPath();
+        ctx.current.strokeStyle = borderColor;
+        ctx.current.lineWidth = borderWidth;
+        ctx.current.fillStyle = backgroundColor;
+
+        ctx.current.fillRect(x, y, w, h);
+        ctx.current.rect(x, y, w, h);
+        ctx.current.stroke();  
+    }
+
+    const modifyInfo = () => {
+        console.log("here");
+        //setDim({x:120, y:0, w:20, h:1302});
+        //drawRect(r1Info);
+    }
+
+    return (
+        <div className="App">
+            <h3> Drawing a Rectangle </h3>
+            <canvas ref={canvas} name={x} id={y}></canvas>
+        </div>
+    );
+}
+
+export default App;
+//ReactDOM.render(<Board />, document.getElementById('app'));
